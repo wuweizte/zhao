@@ -1,0 +1,764 @@
+---
+title: "Analysis Of Fund zhao "
+author: "Wu Wei"
+date: "2017-9-7"
+output: html_document
+---
+
+
+## 1. Library input & Data Input
+```{r library, echo = FALSE}
+rm(list = ls())
+
+suppressMessages(library(forecast))
+suppressMessages(library(ggplot2))
+suppressMessages(library(rugarch))
+suppressMessages(library(lmtest))
+suppressMessages(library(tseries))
+suppressMessages(library(fBasics))
+suppressMessages(library(Rdonlp2))
+suppressMessages(library("FinTS"))
+```
+
+```{r source, echo = FALSE}
+source("d://MyR//stock//CompareObjectNaiveAccuracy.R")
+source("d://MyR//stock//CompareObjectAccuracy.R")
+
+source("d://MyR//zhao//CompareObjectAccuracyArimaNolimitation.R")
+source("d://MyR//zhao//ComputeMarketModel.R")
+source("d://MyR//zhao//ComputeTMModel.R")
+source("d://MyR//zhao//ComputeHMModel.R")
+```
+
+
+```{r 1.2, eval=TRUE}
+original.data <- read.csv("d://MyR//zhao//zhao.csv")
+# (original.data)
+zhao.price <- ts(original.data[,2], start = c(2014, 1), frequency = 12)
+money.interest <- ts(original.data[,3], start = c(2014, 1), frequency = 12)
+hushen300.price <- ts(original.data[,4], start = c(2014, 1), frequency = 12)
+zz500.price <- ts(original.data[,5], start = c(2014, 1), frequency = 12)
+zz800.price <- ts(original.data[,6], start = c(2014, 1), frequency = 12)
+szhl.price <- ts(original.data[,7], start = c(2014, 1), frequency = 12)
+```
+
+```{r 1.3, eval=TRUE}
+zhao.monthly.return <- diff(log(zhao.price))
+hushen300.monthly.return <- diff(log(hushen300.price))
+
+zz500.monthly.return <- diff(log(zz500.price))
+
+zz800.monthly.return <- diff(log(zz800.price))
+
+szhl.monthly.return <- diff(log(szhl.price))
+
+money.monthly.interest <- ts(log(1 + (money.interest[-1] / 12)),start = c(2014, 2), frequency = 12)
+
+hushen300.monthly.return.no.risk <- ts(round(as.numeric(hushen300.monthly.return - money.monthly.interest) * 100, 
+                                              digits = 2), 
+                                       start = c(2014, 2), frequency = 12)
+
+
+zz500.monthly.return.no.risk <- ts(round(as.numeric(zz500.monthly.return - money.monthly.interest) * 100, 
+                                              digits = 2), 
+                                       start = c(2014, 2), frequency = 12)
+
+zz800.monthly.return.no.risk <- ts(round(as.numeric(zz800.monthly.return - money.monthly.interest) * 100, 
+                                              digits = 2), 
+                                       start = c(2014, 2), frequency = 12)
+
+szhl.monthly.return.no.risk <- ts(round(as.numeric(szhl.monthly.return - money.monthly.interest) * 100, 
+                                              digits = 2), 
+                                       start = c(2014, 2), frequency = 12)
+
+zhao.monthly.return.no.risk <- ts(round(as.numeric((zhao.monthly.return - money.monthly.interest) * 100),
+                                     digits = 2),start = c(2014, 2), frequency = 12)
+```
+
+
+```{r 1.4, eval=TRUE}
+yearly.return <- diff(log(zhao.price), lag = 12)
+two.yearly.return <- diff(log(zhao.price), lag = 24)
+```
+
+## 2.  Analysis for monthly return
+
+
+```{r 2.2, eval=TRUE}
+plot(zhao.monthly.return, type = "l")
+abline(h = 0, col = "red")
+```
+
+```{r 2.3, eval=TRUE}
+
+ndiffs(zhao.monthly.return)
+
+```
+
+```{r 2.4, fig.height=8, fig.width=10}
+
+tsdisplay(zhao.monthly.return)
+
+```
+
+
+
+```{r 2.5, eval=TRUE}
+mean(zhao.monthly.return)
+
+mean(zhao.monthly.return) * 12
+
+sd(zhao.monthly.return)
+
+sd(zhao.monthly.return) * sqrt(12)
+
+quantile(zhao.monthly.return, c(0.05, seq(0,1,0.25)))
+
+skewness(zhao.monthly.return)
+kurtosis(zhao.monthly.return)
+jarqueberaTest(zhao.monthly.return)
+
+
+```
+
+## 3.  Analysis of monthly return for hushen300 with money interest subtracted
+
+```{r 3.0.2, fig.height=8, fig.width=10}
+##沪深300求无风险利率期望值
+tsdisplay(hushen300.monthly.return.no.risk)
+```
+
+```{r 3.0.3, eval=TRUE}
+
+ndiffs(hushen300.monthly.return.no.risk)
+
+```
+
+```{r 3.0.4}
+
+(fit.arima.hushen300.monthly.return <- auto.arima(hushen300.monthly.return.no.risk, 
+                                                  stepwise = FALSE, approximation = FALSE))
+
+```
+
+### 3.1 White Noise Test
+
+
+```{r Monthly Verification--White Noise Test, cache=FALSE, eval=TRUE}
+
+Box.test(residuals(fit.arima.hushen300.monthly.return), 
+         lag=round(length(hushen300.monthly.return.no.risk) / 5), 
+         fitdf=sum(fit.arima.hushen300.monthly.return$arma[c(1,2)]), type = "Lj")
+ 
+```
+
+### 3.2  Relationship Between Residuals And Time
+
+```{r main 3.2, fig.height=6, fig.width=10, cache=FALSE, eval=TRUE}
+
+plot(residuals(fit.arima.hushen300.monthly.return), axes = TRUE)
+abline(h = 0, col = "red")
+
+```
+
+### 3.3 Relationship Between Residuals And Fitted Value
+
+```{r main 3.3, fig.height=6, fig.width=10, eval=TRUE}
+
+plot(as.numeric(residuals(fit.arima.hushen300.monthly.return)) ~ as.numeric(fitted(fit.arima.hushen300.monthly.return)))
+abline(h = 0, col = "red")
+
+
+```
+
+
+### 3.4 Normality of Residuals
+
+```{r Monthly Verification--Normality of Residuals, fig.height=6, fig.width=10, eval=TRUE}
+
+qqnorm(residuals(fit.arima.hushen300.monthly.return))
+qqline(residuals(fit.arima.hushen300.monthly.return))
+
+
+```
+
+### 3.5 ARCH Effect Test
+
+
+```{r Monthly Verification 3.5, eval=TRUE}
+
+Box.test((residuals(fit.arima.hushen300.monthly.return))^2, 
+         lag=round(length(hushen300.monthly.return.no.risk) / 5), 
+         fitdf=sum(fit.arima.hushen300.monthly.return$arma[c(1,2)]), type = "Lj")
+
+ArchTest(residuals(fit.arima.hushen300.monthly.return))
+
+
+
+```
+
+#### 3.6 Comparison of pure Arima model of monthly hushen300 with naive model
+
+```{r appendix 3.6, fig.height=5, fig.width=7, echo = TRUE, eval=TRUE}
+
+
+comparison.period <- 10
+
+forecast.period <- 4
+
+training.set.endpoint <- length(hushen300.monthly.return.no.risk) - comparison.period - forecast.period
+
+maxorder <- 5
+```
+
+```{r appendix 3.6(1), fig.height=5, fig.width=7, echo = TRUE, cache=FALSE, eval=TRUE}
+result.naive.hushen300 <- CompareObjectNaiveAccuracy(arg.object = hushen300.monthly.return.no.risk,
+                                                 arg.forecast.period = forecast.period,
+                                                 arg.training.set.endpoint = training.set.endpoint,
+                                                 arg.comparison.period = comparison.period,
+                                                 arg.maxorder = maxorder)
+```
+
+```{r appendix 3.6(2), fig.height=5, fig.width=7, echo = TRUE, cache=FALSE, eval=TRUE}
+result.pure.hushen300 <- CompareObjectAccuracy(arg.object = hushen300.monthly.return.no.risk,
+                                                 arg.forecast.period = forecast.period,
+                                                 arg.training.set.endpoint = training.set.endpoint,
+                                                 arg.comparison.period = comparison.period,
+                                                 arg.maxorder = maxorder)
+```
+
+```{r appendix 3.6(3), fig.height=5, fig.width=7, echo = TRUE, eval=TRUE}
+t.test(result.pure.hushen300$RMSE - result.naive.hushen300$RMSE)
+
+final.result.hushen300 <- cbind(result.pure.hushen300,
+                      result.naive.hushen300)
+
+
+final.result.hushen300 <- final.result.hushen300[, -c(8)]
+
+colnames(final.result.hushen300) <- c("seq", "p","d","q", "dr","RMSE", "p.v",
+                            "p2","d2","q2", "dr2","RMSE2", "p.v2")
+
+print(final.result.hushen300)
+
+sum(final.result.hushen300$RMSE > final.result.hushen300$RMSE2)
+
+sum(final.result.hushen300$p.v > 0.05)
+
+sum(final.result.hushen300$p.v2 > 0.05)
+
+```
+
+
+#### 3.7 Comparison of pure Arima model of monthly hushen300 with another pure model
+
+
+```{r appendix 3.7(2), fig.height=5, fig.width=7, echo = TRUE, cache=FALSE, eval=TRUE}
+result.pure.hushen300.no.limitation <- CompareObjectAccuracyArimaNolimitation(arg.object = hushen300.monthly.return.no.risk,
+                                                 arg.forecast.period = forecast.period,
+                                                 arg.training.set.endpoint = training.set.endpoint,
+                                                 arg.comparison.period = comparison.period,
+                                                 arg.maxorder = maxorder)
+```
+
+```{r appendix 3.7(3), fig.height=5, fig.width=7, echo = TRUE, eval=TRUE}
+t.test(result.pure.hushen300$RMSE - result.pure.hushen300.no.limitation$RMSE)
+
+final.result.hushen300 <- cbind(result.pure.hushen300,
+                      result.pure.hushen300.no.limitation)
+
+
+final.result.hushen300 <- final.result.hushen300[, -c(8)]
+
+colnames(final.result.hushen300) <- c("seq", "p","d","q", "dr","RMSE", "p.v",
+                            "p2","d2","q2", "dr2","RMSE2", "p.v2")
+
+print(final.result.hushen300)
+
+sum(final.result.hushen300$RMSE > final.result.hushen300$RMSE2)
+
+sum(final.result.hushen300$p.v > 0.05)
+
+sum(final.result.hushen300$p.v2 > 0.05)
+
+```
+
+### 3.8 Forecast
+```{r}
+forecast(fit.arima.hushen300.monthly.return, h = 1, 
+                              level = c(80,95))
+```
+
+```{r}
+tail(hushen300.monthly.return.no.risk)
+```
+
+
+## 4.  Analysis of monthly return between zhao and hushen300 with money interest subtracted
+
+### 4.1 Analysis of total data
+
+
+```{r}
+cor(hushen300.monthly.return.no.risk, zhao.monthly.return.no.risk)
+
+fit <- lm(zhao.monthly.return.no.risk ~ hushen300.monthly.return.no.risk)
+
+summary(fit)
+```
+
+```{r}
+fit.2 <- lm(zhao.monthly.return.no.risk ~ hushen300.monthly.return.no.risk + zz500.monthly.return.no.risk)
+
+summary(fit.2)
+```
+
+```{r}
+fit.3 <- lm(zhao.monthly.return.no.risk ~ zz800.monthly.return.no.risk)
+
+summary(fit.3)
+```
+
+```{r}
+fit.4 <- lm(zhao.monthly.return.no.risk ~ zz500.monthly.return.no.risk)
+
+summary(fit.4)
+```
+
+```{r}
+fit.5 <- lm(zhao.monthly.return.no.risk ~ szhl.monthly.return.no.risk)
+
+summary(fit.5)
+```
+
+```{r}
+fit.6 <- lm(zhao.monthly.return.no.risk ~ zz500.monthly.return.no.risk + szhl.monthly.return.no.risk)
+
+summary(fit.6)
+```
+
+```{r}
+fit.7 <- lm(zhao.monthly.return.no.risk ~ hushen300.monthly.return.no.risk  + 
+                    szhl.monthly.return.no.risk)
+
+summary(fit.7)
+```
+
+```{r}
+fit.8 <- lm(zhao.monthly.return.no.risk ~ hushen300.monthly.return.no.risk  + 
+                    zz500.monthly.return.no.risk + 
+                    szhl.monthly.return.no.risk)
+
+summary(fit.8)
+```
+
+
+```{r, fig.height=6, fig.width=8}
+plot(as.numeric(hushen300.monthly.return.no.risk), 
+     as.numeric(zhao.monthly.return.no.risk), 
+     type = "p", 
+     xlab = "沪深300月度超额收益率%", 
+     ylab = "赤子之心价值月度超额收益率%", 
+     main = "证券特征线")
+
+abline(h = 0, v = 0, col = "green")
+points(tail(hushen300.monthly.return.no.risk), tail(zhao.monthly.return.no.risk), col = "purple", pch = 20)
+
+abline(fit)
+
+```
+
+
+```{r}
+## Treynor-Black model
+alpha.zhao <- 0.8
+sigma.zhao <- 4.5
+beta.zhao <- 0.4
+
+return.hushen300 <- 0.4
+sigma.hushen300 <- 8
+
+wzhao0 <- (alpha.zhao / (sigma.zhao^2)) / (return.hushen300 / (sigma.hushen300^2))
+
+(wzhao <- wzhao0 / (1 + wzhao0*(1 - beta.zhao)) )
+
+
+
+```
+
+### 4.1.1 Analysis of total data using TM model
+```{r}
+hushen300.monthly.return.square <- hushen300.monthly.return.no.risk^2
+
+fit.tm <- lm(zhao.monthly.return.no.risk ~ hushen300.monthly.return.no.risk + 
+                     hushen300.monthly.return.square)
+
+summary(fit.tm)
+```
+
+### 4.1.2 Analysis of total data using HM model
+```{r}
+
+hushen300.monthly.return.positive <- hushen300.monthly.return.no.risk
+hushen300.monthly.return.positive[hushen300.monthly.return.positive < 0] <- 0
+
+fit.hm <- lm(zhao.monthly.return.no.risk ~ hushen300.monthly.return.no.risk + 
+                     hushen300.monthly.return.positive)
+
+summary(fit.hm)
+```
+
+### 4.2 Analysis of moving 12 months data
+```{r}
+alpha <- ts(rep(0,length(zhao.monthly.return.no.risk)), start = c(2014, 2), frequency = 12)
+beta <- alpha
+gamma <- alpha
+
+return.matrix.tm <- cbind(zhao.monthly.return.no.risk, 
+                       hushen300.monthly.return.no.risk, 
+                       alpha, 
+                       beta,
+                       gamma) 
+
+dimnames(return.matrix.tm)[[2]][1] <- "zhao"
+dimnames(return.matrix.tm)[[2]][2] <- "hushen300"
+
+return.matrix.hm <- return.matrix.tm
+
+return.matrix <- return.matrix.tm[,1:4]
+```
+
+```{r}
+(return.matrix <- ComputeMarketModel(return.matrix))
+
+```
+
+```{r, fig.height=10, fig.width=10}
+plot.layout.matrix <- matrix(c(1,2,3), 
+                             nr = 3,
+                             byrow = TRUE)
+
+layout(plot.layout.matrix)
+
+plot(return.matrix[,"zhao"])
+abline(h = 0, col = "green")
+
+plot(return.matrix[,"alpha"])
+abline(h = 0, col = "green")
+
+plot(return.matrix[,"beta"])
+abline(h = 0, col = "green")
+
+layout(matrix(1))
+```
+
+#### 4.2.1 Analysis of moving 12 months data using TM model
+
+
+```{r}
+
+(return.matrix.tm <- ComputeTMModel(return.matrix.tm))
+
+```
+
+```{r, fig.height=12, fig.width=10}
+plot.layout.matrix <- matrix(c(1,2,3, 4), 
+                             nr = 4,
+                             byrow = TRUE)
+
+layout(plot.layout.matrix)
+
+plot(return.matrix.tm[,"zhao"])
+abline(h = 0, col = "green")
+
+plot(return.matrix.tm[,"alpha"])
+abline(h = 0, col = "green")
+
+plot(return.matrix.tm[,"beta"])
+abline(h = 0, col = "green")
+
+plot(return.matrix.tm[,"gamma"])
+abline(h = 0, col = "green")
+
+layout(matrix(1))
+```
+
+#### 4.2.2 Analysis of moving 12 months data using HM model
+
+
+```{r}
+(return.matrix.hm <- ComputeHMModel(return.matrix.hm))
+```
+
+```{r, fig.height=12, fig.width=10}
+plot.layout.matrix <- matrix(c(1,2,3, 4), 
+                             nr = 4,
+                             byrow = TRUE)
+
+layout(plot.layout.matrix)
+
+plot(return.matrix.hm[,"zhao"])
+abline(h = 0, col = "green")
+
+plot(return.matrix.hm[,"alpha"])
+abline(h = 0, col = "green")
+
+plot(return.matrix.hm[,"beta"])
+abline(h = 0, col = "green")
+
+plot(return.matrix.hm[,"gamma"])
+abline(h = 0, col = "green")
+
+layout(matrix(1))
+```
+
+## 5.  Analysis for yearly return
+
+```{r, eval=TRUE}
+
+plot(yearly.return, type = "l")
+abline(h = 0, col = "red")
+```
+
+```{r, eval=TRUE}
+
+ndiffs(yearly.return)
+
+```
+
+```{r, fig.height=8, fig.width=10}
+
+tsdisplay(yearly.return)
+
+```
+
+```{r, eval=TRUE}
+mean(yearly.return)
+sd(yearly.return)
+
+quantile(yearly.return, c(0.05, seq(0,1,0.25)))
+tail(yearly.return, 2)
+
+skewness(yearly.return)
+kurtosis(yearly.return)
+jarqueberaTest(yearly.return)
+
+
+```
+
+## 6.  Analysis of yearly return for portfolio with penghua dollar fund
+
+```{r portfolio with penghua dollar fund, fig.height=8, fig.width=10}
+wzhao <- seq(0, 1, by = 0.05)
+wpenghua <- 1 - wzhao
+
+##zhao
+Erzhao <- 15
+sigma.zhao <- 20
+
+##penghua
+Erpenghua <- 8
+sigma.penghua <- 4
+
+cor.zhao.penghua <- 0.1
+
+# rhuobi <- 5
+
+Ero <- wzhao * Erzhao + wpenghua * Erpenghua
+
+sigmao <- sqrt((wzhao * sigma.zhao)^2 + (wpenghua * sigma.penghua)^2
+               +2 * (wzhao * sigma.zhao)*(wpenghua * sigma.penghua) * cor.zhao.penghua)
+
+
+
+```
+
+```{r}
+rhuobi <- 3.5
+
+Fx1 <- (Erzhao - rhuobi) * sigma.penghua^2 - (Erpenghua - rhuobi) * sigma.zhao * sigma.penghua * cor.zhao.penghua
+
+Fx2 <- (Erzhao - rhuobi) * sigma.penghua^2 + (Erpenghua - rhuobi)*sigma.zhao^2 - 
+        (Erzhao - rhuobi + Erpenghua - rhuobi) * sigma.zhao * sigma.penghua * cor.zhao.penghua
+
+(Fzhao <- Fx1 / Fx2)
+
+(Ero.2 <- Fzhao * Erzhao + (1 - Fzhao) * Erpenghua)
+
+(sigmao.2 <- sqrt((Fzhao * sigma.zhao)^2 + ((1-Fzhao) * sigma.penghua)^2
+               +2 * (Fzhao * sigma.zhao)*((1 - Fzhao) * sigma.penghua) * cor.zhao.penghua))
+
+(sharpo.2 <- (Ero.2 - rhuobi) / sigmao.2)
+
+(sharpx <- (Erzhao - rhuobi) / sigma.zhao)
+
+(sharpm <- (Erpenghua - rhuobi) / sigma.penghua)
+
+
+```
+
+```{r}
+##try Rdonlp2 package
+p <- c(0.5, 0.5)
+par.l <- c(0, 0)
+par.u <- c(1, 1)
+
+fn <- function(x){
+        F1 <- x[1] * Erzhao + x[2] * Erpenghua - rhuobi
+        F2 <- sqrt((x[1] * sigma.zhao)^2 + (x[2] * sigma.penghua)^2
+               +2 * (x[1] * sigma.zhao)*(x[2] * sigma.penghua) * cor.zhao.penghua)
+        F1 / F2
+}
+
+A <- matrix(c(1,1), 1, byrow = TRUE)
+lin.l <- 1
+lin.u <- 1
+
+ret <- donlp2(p, fn, par.u = par.u, par.l = par.l, A, 
+              lin.lower = lin.l, 
+              lin.upper = lin.u,
+              control = donlp2Control(fnscale = -1))
+
+ret$par
+
+ret$fx
+
+ret$message
+
+```
+
+
+```{r}
+plot(sigmao, Ero, 
+     xlim = c(0, max(sigmao)),
+     ylim = c(0, max(Ero)))
+
+lines(sigmao, Ero)
+
+lines(c(0,sigmao.2), c(rhuobi, Ero.2), col = "blue", lty = "dashed")
+
+```
+
+```{r}
+rhuobi <- 4
+
+Fx1 <- (Erzhao - rhuobi) * sigma.penghua^2 - (Erpenghua - rhuobi) * sigma.zhao * sigma.penghua * cor.zhao.penghua
+
+Fx2 <- (Erzhao - rhuobi) * sigma.penghua^2 + (Erpenghua - rhuobi)*sigma.zhao^2 - 
+        (Erzhao - rhuobi + Erpenghua - rhuobi) * sigma.zhao * sigma.penghua * cor.zhao.penghua
+
+(Fzhao <- Fx1 / Fx2)
+
+(Ero.2 <- Fzhao * Erzhao + (1 - Fzhao) * Erpenghua)
+
+(sigmao.2 <- sqrt((Fzhao * sigma.zhao)^2 + ((1-Fzhao) * sigma.penghua)^2
+               +2 * (Fzhao * sigma.zhao)*((1 - Fzhao) * sigma.penghua) * cor.zhao.penghua))
+
+(sharpo.2 <- (Ero.2 - rhuobi) / sigmao.2)
+
+(sharpx <- (Erzhao - rhuobi) / sigma.zhao)
+
+(sharpm <- (Erpenghua - rhuobi) / sigma.penghua)
+
+
+```
+
+## 7.  Analysis of yearly return for portfolio with penghua dollar fund and guotai bond fund
+
+```{r}
+##zhao
+Erzhao <- 15
+sigma.zhao <- 20
+
+##penghua
+Erpenghua <- 8
+sigma.penghua <- 4
+
+##guotai
+Erguotai <- 5
+sigma.guotai <- 4
+
+cor.zhao.penghua <- 0.1
+cor.zhao.guotai <- 0.4
+cor.penghua.guotai <- 0.3
+
+rhuobi <- 3.5
+
+##try Rdonlp2 package
+p <- c(0.4, 0.4, 0.2)
+par.l <- c(0, 0, 0)
+par.u <- c(1, 1, 1)
+
+fn <- function(x){
+        F1 <- x[1] * Erzhao + x[2] * Erpenghua + x[3] * Erguotai - rhuobi
+        
+        F2 <- sqrt((x[1] * sigma.zhao)^2 + 
+                           (x[2] * sigma.penghua)^2 +
+                           (x[3] * sigma.guotai)^2 +
+                           2 * (x[1] * sigma.zhao)*(x[2] * sigma.penghua) * cor.zhao.penghua +
+                           2 * (x[1] * sigma.zhao)*(x[3] * sigma.guotai) * cor.zhao.guotai +
+                           2 * (x[2] * sigma.penghua)*(x[3] * sigma.guotai) * cor.penghua.guotai)
+        
+        F1 / F2
+}
+
+A <- matrix(c(1,1,1), 1, byrow = TRUE)
+lin.l <- 1
+lin.u <- 1
+
+ret <- donlp2(p, fn, par.u = par.u, par.l = par.l, A, 
+              lin.lower = lin.l, 
+              lin.upper = lin.u,
+              control = donlp2Control(fnscale = -1))
+
+ret$par
+
+ret$fx
+
+ret$message
+
+```
+
+```{r}
+fn(c(0.4, 0.4, 0.2))
+fn(c(0.2, 0.5, 0.3))
+fn(c(0.2, 0.7, 0.1))
+fn(c(0.2, 0.8, 0))
+```
+
+
+## 8.  Analysis for 2 years return
+
+```{r, eval=TRUE}
+
+plot(two.yearly.return, type = "l")
+abline(h = 0, col = "red")
+```
+
+```{r, eval=TRUE}
+
+ndiffs(two.yearly.return)
+
+```
+
+```{r, fig.height=8, fig.width=10}
+
+tsdisplay(two.yearly.return)
+
+```
+
+
+```{r, eval=TRUE}
+mean(two.yearly.return)
+sd(two.yearly.return)
+
+quantile(two.yearly.return, c(0.05, seq(0,1,0.25)))
+tail(two.yearly.return, 2)
+
+skewness(two.yearly.return)
+kurtosis(two.yearly.return)
+jarqueberaTest(two.yearly.return)
+
+```
+
+
